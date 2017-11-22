@@ -1,0 +1,15 @@
+Name: FeelsGoodMan
+IconPath: feelsgoodman.jpg
+SoundPath: feelsgoodman.wav
+Description: |
+    Descriptions de mon équipe
+BrainsPackage: feelsgoodman
+AgentsBrainClasses:
+    WarBase: WarBaseBrainController
+    WarExplorer: WarExplorerBrainController
+    WarLight: WarLightBrainController
+    WarHeavy: WarHeavyBrainController
+    WarRocketLauncher: WarRocketLauncherBrainController
+    WarKamikaze: WarKamikazeBrainController
+    WarEngineer: WarEngineerBrainController
+    WarTurret: WarTurretBrainController
