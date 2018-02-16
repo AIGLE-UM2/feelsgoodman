@@ -14,6 +14,13 @@ import edu.warbot.communications.WarMessage;
 public abstract class WarExplorerBrainController extends WarExplorerBrain {
 
 	WTask ctask;
+	private int _fuite;
+	
+	public WarExplorerBrainController() {
+		super();
+		ctask = getFoodTask;
+		this._fuite = 0;
+	}
 
 	static WTask handleMsgs = new WTask() {
 		String exec(WarBrain bc) {
@@ -47,7 +54,7 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 				if (m != null)
 					me.setHeading(m.getAngle());
 
-				// j'envoie un message aux bases pour savoir o� elle sont..
+				// j'envoie un message aux bases pour savoir où elle sont..
 				me.broadcastMessageToAgentType(WarAgentType.WarBase,
 						"Where are you?", (String[]) null);
 
@@ -75,52 +82,95 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 			if (me.isBagFull()) {
 
 				me.ctask = returnFoodTask;
-				return (null);
+				return null;
+			}
+			
+			for (WarAgentPercept wp : me.getPerceptsEnemies()) {
+        		
+                if (!wp.getType().equals(WarAgentType.WarExplorer) && !wp.getType().equals(WarAgentType.WarFood)
+                		&& !wp.getType().equals(WarAgentType.WarEngineer)) {
+                	me.ctask = escape;
+                	me._fuite = 6;
+                	me.setHeading(me.getHeading() + 180);
+                	return ACTION_MOVE;
+                }
 			}
 
-			if (me.isBlocked())
-				me.setRandomHeading();
-
-			me.setDebugString("Searching food");
+			//me.setDebugString("Searching food");
 
 			ArrayList<WarAgentPercept> foodPercepts = (ArrayList<WarAgentPercept>) me
 					.getPercepts();
 
-			// Si il y a de la nouriture
+			// Si il y a des percepts
 			if (foodPercepts != null && foodPercepts.size() > 0) {
-				// WarAgentPercept foodP = foodPercepts.get(0); //le 0 est le
-				// plus proche normalement
+				//Nourriture la plus proche normalement
 				WarAgentPercept foodP = null;
 				for (WarAgentPercept war : foodPercepts) {
 					if (war.getType() == WarAgentType.WarFood && foodP == null)
 						foodP = war;
 				}
-
+				
+				//Si on trouve de la nourriture
 				if (foodP != null) {
+					me.broadcastMessageToAgentType(WarAgentType.WarExplorer, "I get food !", "");
+					me.broadcastMessageToAgentType(WarAgentType.WarLight, "I get food !", "");
 					if (foodP.getDistance() > WarResource.MAX_DISTANCE_TAKE) {
 						me.setHeading(foodP.getAngle());
 						return (MovableWarAgent.ACTION_MOVE);
-					} else {
-						return (MovableWarAgent.ACTION_TAKE);
-					}
-				} else {
+					}	
+					else return (MovableWarAgent.ACTION_TAKE);
+				} 
+				//Si on ne trouve pas de nourrriture mais si un autre agent en a trouvé
+				else if(me.getMessageAboutFood() != null){
+					me.setHeading(me.getMessageAboutFood().getAngle());
 					return (MovableWarAgent.ACTION_MOVE);
 				}
-			} else {
+				else {
+					return (MovableWarAgent.ACTION_MOVE);
+				}
+			} 
+			//Pas de percepts mais d'autres agents ont trouvé de la nourriture
+			else if(me.getMessageAboutFood() != null){
+				me.setHeading(me.getMessageAboutFood().getAngle());
 				return (MovableWarAgent.ACTION_MOVE);
 			}
+			else return (MovableWarAgent.ACTION_MOVE);
 		}
 	};
-
-	public WarExplorerBrainController() {
-		super();
-		ctask = getFoodTask; // initialisation de la FSM
-	}
+	
+	static WTask escape = new WTask() {
+		String exec(WarBrain bc) {
+			WarExplorerBrainController me = (WarExplorerBrainController) bc;
+			
+			me._fuite--;
+			if(me._fuite == 0) {
+				me.setHeading(me.getHeading() + 90);
+				me.ctask = getFoodTask;
+			}
+			
+			if(me.isBlocked())
+				me.setRandomHeading();
+			return ACTION_MOVE;
+		}
+	};
 
 	@Override
 	public String action() {
 
-		// Develop behaviour here
+		for (WarAgentPercept wp : getPerceptsEnemies()) {
+    		
+            if (wp.getType().equals(WarAgentType.WarBase)){
+            	String ang = "";
+    			ang += wp.getAngle();
+    			String dis = "";
+    			dis += wp.getDistance();
+    		
+    			String[] content = new String[]{ang, dis};
+    			
+            	broadcastMessageToAll("Base found !", content);
+            }
+		}
+		
 
 		String toReturn = ctask.exec(this); // le run de la FSM
 
@@ -129,15 +179,25 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 				setRandomHeading();
 			return WarExplorer.ACTION_MOVE;
 		} else {
+			if(isBlocked())
+				setRandomHeading();
 			return toReturn;
 		}
 	}
 
 	private WarMessage getMessageAboutFood() {
-		for (WarMessage m : getMessages()) {
-			if (m.getMessage().equals("foodHere"))
-				return m;
+		if(!this.getMessages().isEmpty()){
+			WarMessage message = this.getMessages().get(0);
+			for( WarMessage wm : this.getMessages()){
+				if(wm.getMessage().equals("I get food !") && wm.getDistance() <= message.getDistance()){
+					message = wm;
+				}
+			}
+			if(message.getMessage().equals("I get food !")){
+				return message;
+			}
 		}
+		
 		return null;
 	}
 
@@ -150,24 +210,4 @@ public abstract class WarExplorerBrainController extends WarExplorerBrain {
 		broadcastMessageToAgentType(WarAgentType.WarBase, "Where are you?", "");
 		return null;
 	}
-
-	/*
-	 * public WarExplorerBrainController() { super();
-	 * 
-	 * }
-	 * 
-	 * /*@Override public String action() {
-	 * 
-	 * if (isBlocked()) setRandomHeading(); else if(!isBagFull()){
-	 * List<WarAgentPercept> foods= getPercepts(); if(!foods.isEmpty()){ double
-	 * dist = 10000;
-	 * 
-	 * //Trouve la plus proche for(WarAgentPercept wap : foods){
-	 * if(wap.getType() == WarAgentType.WarFood && dist > wap.getDistance()){
-	 * dist = wap.getDistance(); if(dist <= WarFood.MAX_DISTANCE_TAKE) return
-	 * take(); setHeading(wap.getAngle()); } }
-	 * 
-	 * } } else setDebugString("I'm full !"); return WarExplorer.ACTION_MOVE; }
-	 */
-
 }
